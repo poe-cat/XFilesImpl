@@ -1,8 +1,9 @@
 package org.poecat;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.function.Consumer;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class FileCabinet implements Cabinet {
 
@@ -12,17 +13,21 @@ public class FileCabinet implements Cabinet {
         this.folders = folders;
     }
 
+    //Searches for the first folder with the given name in the entire structure (recursively)
     @Override
     public Optional<Folder> findFolderByName(String name) {
         return findByNameRecursive(folders, name);
     }
 
+    //Recursively searches through folders and returns the first one matching the given name
     private Optional<Folder> findByNameRecursive(List<Folder> folders, String name) {
 
         for (Folder folder : folders) {
+            //Check the current folder
             if (folder.getName().equals(name)) {
                 return Optional.of(folder);
             }
+            //If the folder contains subfolders, search them recursively
             if (folder instanceof MultiFolder) {
                 Optional<Folder> found = findByNameRecursive(((MultiFolder) folder).getFolders(), name);
                 if (found.isPresent()) {
@@ -33,42 +38,40 @@ public class FileCabinet implements Cabinet {
         return Optional.empty();
     }
 
+    //Returns all folders of the given size (SMALL/MEDIUM/LARGE)
     @Override
     public List<Folder> findFoldersBySize(String size) {
 
         List<Folder> result = new ArrayList<>();
-        findBySizeRecursive(folders, size, result);
 
-        return result;
-    }
-
-    private void findBySizeRecursive(List<Folder> folders, String size, List<Folder> result) {
-
-        for (Folder folder : folders) {
+        //Traverses all folders and collects those matching the given size
+        traverse(folders, folder -> {
             if (folder.getSize().equals(size)) {
                 result.add(folder);
             }
-            if (folder instanceof MultiFolder) {
-                findBySizeRecursive(((MultiFolder) folder).getFolders(), size, result);
-            }
-        }
+        });
+        return result;
     }
 
+    //Returns the total number of folders in the structure
     @Override
     public int count() {
-        return countRecursive(folders);
+
+        AtomicInteger counter = new AtomicInteger();
+        traverse(folders, folder -> counter.incrementAndGet());
+
+        return counter.get();
     }
 
-    private int countRecursive(List<Folder> folders) {
-
-        int total = 0;
+    //Recursively traverses the entire folder structure,
+    //executing the provided action for each folder
+    private void traverse(List<Folder> folders, Consumer<Folder> processor) {
 
         for (Folder folder : folders) {
-            total++;
+            processor.accept(folder);
             if (folder instanceof MultiFolder) {
-                total += countRecursive(((MultiFolder) folder).getFolders());
+                traverse(((MultiFolder) folder).getFolders(), processor);
             }
         }
-        return total;
     }
 }
